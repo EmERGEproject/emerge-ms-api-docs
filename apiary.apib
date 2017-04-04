@@ -1,0 +1,1150 @@
+not FORMAT: 1A
+HOST: http://polls.apiblueprint.org/
+
+# EmERGE Messaging Service
+
+The EmERGE Messaging Service is the bridge between the Clinical Web App (where Clinicians review and approve data) and the Patient Mobile App (where patient's can review data approved to be sent to the messaging service).
+Medications, Results, and Appointments for specific patients are sent to the Messaging Service to be served to patient devices on request.
+Along with that it handles FAQ data for all patients of each hospital as well as providing information back to the hospital on patients that have requested password resets or to be removed from the study
+
+# REST
+
+The EmERGE Messaging Service is a RESTful API service. This means that URLs are resource based and the action used for requests will determine what actions are taken.
+Details on how RESTful services are structured can be found [here](http://www.restapitutorial.com/lessons/httpmethods.html).
+
+# Authenticating with the API
+
+## The api_key parameter
+
+All API endpoints accept the api_key parameter. This is the key used to authenticate yourself against the hospital you attempting to work with. Any request that does not send a valid api_key parameter for the hospital that is being worked with will receive a 400 response.
+
+For post, put, patch, and delete requests this must be sent in the body of the request. For get requests this must be sent as a url parameter.
+
+### Api key types
+
+There are two types of api key as the API is split into two halves, Mobile and Clinical.
+
+The Mobile half of the API requires a mobile api key, this is shared across all hospitals. This half of the API provides read only access to patient data, once a patient has successfully authenticated.
+
+The Clinical half of the API requires a clinical api key. Each hospital has their own API key that provides read and write access to patients for that hospital. It does not provide access to patient's for other hospitals.
+
+### Revoking/Replacing your API key
+
+Your api_key MUST be kept secure as it authenticates all access to the Messaging Service for your hospital.
+Your api_key can be revoked and replaced by emailing [emergesupport@podmedics.com](mailto:emergesupport@podmedics.com).
+
+# Common Parameters
+
+## hospital_id
+
+This is the unique identifier for your hospital. This is passed in to all requests as a part of the url like this: ```api/v1/clinical/hospitals/:hospital_id```.
+
+You will be given your hospital_id along with your api_key.
+
+## id
+
+This is a unique identifier for a patient. This will be passed in to all requests that deal with a patient in the URL.
+For patient creation this will be passed in in the body under the ```id``` key.
+For requests that alter or request a patient this will be passed in as a part of the url. ```api/v1/hospitals/:hospital_id/patients/:id```.
+
+This must be unique.
+
+## password_digest
+
+This is used in patient creation and patient updates for passing the password to the messaging service.
+
+This is a [Bcrypt](https://en.wikipedia.org/wiki/Bcrypt) hash of the patient's password. This will be used for authenticating the patient in the mobile app.
+Do not pass a plain text string in, it will be accepted however patient login will not work with that string.
+
+[More Info on Bcrypt](http://davismj.me/blog/bcrypt/)
+
+# Clinical
+
+# POST /api/v1/clinical/hospitals/1/patients
+
+Create a new patient.
+
+id and password_digest match the structure described above.
+
+### Optional parameters:
+- base_data (Detailed blow)
+
+### base_data
+
+These display in the mobile app as a static set of data for the patient. 
+Can also be sent in update actions.
+Accepts arbitrary names and values. Not graphed. Do not send ANY PII.
+```    
+[
+      {
+        name: "nadir_cd4"
+        value: "1",
+      },
+      {
+        name: "diagnosis_date"
+        value: "13/12/2016",
+      },
+      {
+        name: "resistance_result"
+        value: "1",
+      },
+    ]
+```
+
++ Request (application/json; charset=utf-8)
+
+        {
+            "api_key": "2h2EPLVNjKjpqTxRugdTvH45",
+            "id": "1",
+            "password_digest": "$2a$04$ACmfUzW6o7QTTaC6NEkuyOP.EbiqkYab218fk7k84JGECXtl3gpgW",
+            base_data: [
+              {
+                name: "nadir_cd4"
+                value: "1",
+              },
+              {
+                name: "diagnosis_date"
+                value: "13/12/2016",
+              },
+              {
+                name: "resistance_result"
+                value: "1",
+              },
+            ]
+        }
+
++ Response 200 (application/json; charset=utf-8)
+
+    + Headers
+
+            X-Runtime: 0.022168
+            X-Xss-Protection: 1; mode=block
+            Cache-Control: max-age=0, private, must-revalidate
+            X-Request-Id: 70a1db92-25be-4b09-b368-ac6b0b75d310
+            X-Content-Type-Options: nosniff
+            Etag: W/"97a46e06125480a43f4a576c32976734"
+            Vary: Origin
+            X-Frame-Options: SAMEORIGIN
+
+    + Body
+
+            {
+              "status": 200,
+              "errors": [
+            
+              ],
+              "patient": {
+                "identifier": "1",
+                "mobile_setup": false
+              }
+            }
+
++ Response 422 (application/json; charset=utf-8)
+
+    + Headers
+
+            X-Runtime: 0.021226
+            X-Xss-Protection: 1; mode=block
+            Cache-Control: no-cache
+            X-Request-Id: a01ed157-ab93-4c7b-bd9a-c5808b7fcb95
+            X-Content-Type-Options: nosniff
+            Vary: Origin
+            X-Frame-Options: SAMEORIGIN
+
+    + Body
+
+            {
+              "status": 422,
+              "errors": [
+                "Identifier has already been taken"
+              ]
+            }
+
+# PATCH /api/v1/clinical/hospitals/1/patients/1
+
+Update a patient's data.
+
+### Optional parameters:
+- password_digest
+- results
+- appointments
+- medications
+- message
+- base_data (Detailed blow)
+
+### base_data
+
+These display in the mobile app as a static set of data for the patient. 
+Can also be sent in update actions.
+Accepts arbitrary names and values. Not graphed. Do not send ANY PII.
+```    
+[
+      {
+        name: "nadir_cd4"
+        value: "1",
+      },
+      {
+        name: "diagnosis_date"
+        value: "13/12/2016",
+      },
+      {
+        name: "resistance_result"
+        value: "1",
+      },
+    ]
+```
+
+### Data Handling
+
+password_digest, appointments, and medications will all replace existing data on the patient when passed in. Old medications, appointments, and passwords will be deleted and replaced with whatever is passed in.
+
+results will add new results to the list of results on a patient. results that are passed in with the same date as an existing result will replace the old result.
+
+message will just add the message to the list of all messages to the patient and appear on the patient's device.
+
+### New Data Notifications
+
+New results, appointments, medications, and messages will place notifications inside the app to the patient to let them know that they have new data.
+
+### Results structure
+
+A set of blood test results for a given date must have the following format:
+
+```
+{
+    "date": "12-07-2016", # DD-MM-YYYY
+    "results": {
+        "HIV": { # Section name
+            "Viral Load": 0, # Specific data name as key, data value as value
+            "CD4 Count": 1267 # Result data must be a numeric, either a float or an integer.
+        },
+        "Safety Labs": {
+            "ALT (ukat/L)": 12,
+            "Fasting Glucose (mmol/L)": 4.95,
+            "Haemoglobin (g/dl)": 14.16,
+            "Total Cholesterol (mmol/L)": 3.8,
+            "Leukocytes (x10^9/L)": 5.08,
+            "Sodium (mmol/L)": 141,
+            "Potassium (mmol/L)": 5,
+            "Creatinine (μmol/L)": 70,
+            "Triglycerides (mmol/L)": 0.98
+        }
+    }
+}
+```
+
+The data above will appear like this inside the mobile app:
+
+![Results app screenshot](http://i.imgur.com/jRvlDSy.png)
+
+### Medications structure
+
+```
+{
+    "name": "Atripla",
+    "dose": "One tablet daily",
+    "description": "Each tablet contains 600mg efavirenz + 300mg tenofovir disoproxil fumarate + 200mg emtricitabine.",
+    "treatment_end": "12-07-2032", # DD-MM-YYYY
+    "treatment_start": "12-07-2016" # DD-MM-YYYY
+}
+```
+
+### Appointments structure
+
+```
+{
+    "date": "12-07-2017", # DD-MM-YYYY
+    "time": "17:00", # HH:MM
+    "description": "Doctors Appointment"
+}
+```
+
++ Request (application/json; charset=utf-8)
+
+        {
+            "api_key": "2h2EPLVNjKjpqTxRugdTvH45",
+            "password_digest": "$2a$04$ACmfUzW6o7QTTaC6NEkuyOP.EbiqkYab218fk7k84JGECXtl3gpgW",
+            base_data: [
+              {
+                name: "nadir_cd4"
+                value: "1",
+              },
+              {
+                name: "diagnosis_date"
+                value: "13/12/2016",
+              },
+              {
+                name: "resistance_result"
+                value: "1",
+              },
+            ],
+            "results": [
+                {
+                    "date": "12-07-2016",
+                    "results": {
+                        "HIV": {
+                            "Viral Load": 0,
+                            "CD4 Count": 1267
+                        },
+                        "Safety Labs": {
+                            "ALT (ukat/L)": 12,
+                            "Fasting Glucose (mmol/L)": 4.95,
+                            "Haemoglobin (g/dl)": 14.16,
+                            "Total Cholesterol (mmol/L)": 3.8,
+                            "Leukocytes (x10^9/L)": 5.08,
+                            "Sodium (mmol/L)": 141,
+                            "Potassium (mmol/L)": 5,
+                            "Creatinine (μmol/L)": 70,
+                            "Triglycerides (mmol/L)": 0.98
+                        }
+                    }
+                },
+                {
+                    "date": "12-01-2016",
+                    "results": {
+                        "HIV": {
+                            "Viral Load": 0,
+                            "CD4 Count": 1414
+                        },
+                        "Safety Labs": {
+                            "ALT (ukat/L)": 23,
+                            "Fasting Glucose (mmol/L)": 4.81,
+                            "Haemoglobin (g/dl)": 17.45,
+                            "Total Cholesterol (mmol/L)": 3.59,
+                            "Leukocytes (x10^9/L)": 9.2,
+                            "Sodium (mmol/L)": 142,
+                            "Potassium (mmol/L)": 4.23,
+                            "Creatinine (μmol/L)": 99,
+                            "Triglycerides (mmol/L)": 0.63
+                        }
+                    }
+                }
+            ],
+            "medications": [
+                {
+                    "name": "Atripla",
+                    "dose": "One tablet daily",
+                    "description": "Each tablet contains 600mg efavirenz + 300mg tenofovir disoproxil fumarate + 200mg emtricitabine.",
+                    "treatment_end": "12-07-2032",
+                    "treatment_start": "12-07-2016"
+                }
+            ],
+            "appointments": [
+                {
+                    "date": "12-07-2017",
+                    "time": "17:00",
+                    "description": "Doctors Appointment"
+                },
+                {
+                    "date": "12-01-2018",
+                    "time": "17:45",
+                    "description": "Doctors Appointment"
+                },
+                {
+                    "date": "12-07-2018",
+                    "time": "15:15",
+                    "description": "Doctors Appointment"
+                },
+                {
+                    "date": "12-01-2019",
+                    "time": "13:15",
+                    "description": "Nurse Appointment"
+                },
+                {
+                    "date": "12-07-2019",
+                    "time": "16:00",
+                    "description": "Doctors Appointment"
+                }
+            ],
+            "message": "This is a message"
+        }
+
++ Response 200 (application/json; charset=utf-8)
+
+    + Headers
+
+            X-Runtime: 0.054616
+            X-Xss-Protection: 1; mode=block
+            Cache-Control: max-age=0, private, must-revalidate
+            X-Request-Id: 15a8b48d-499a-4d8b-a54b-578088e9101f
+            X-Content-Type-Options: nosniff
+            Etag: W/"0f65ff216e32d7dd4979398bb6a9d343"
+            Vary: Origin
+            X-Frame-Options: SAMEORIGIN
+
+    + Body
+
+            {
+              "status": 200,
+              "errors": [
+
+              ],
+              "data_received": true
+            }
+
+
+# GET /api/v1/clinical/hospitals/1/patients/1
+
+Request data on a specific patient.
+
+api_key must be passed as a get parameter, like this: ```/api/v1/clinical/hospitals/1/patients/1?api_key=2h2EPLVNjKjpqTxRugdTvH45```
+
++ Request (application/json; charset=utf-8)
+
+        {}
+
++ Response 200 (application/json; charset=utf-8)
+
+    + Headers
+
+            X-Runtime: 0.023648
+            X-Xss-Protection: 1; mode=block
+            Cache-Control: max-age=0, private, must-revalidate
+            X-Request-Id: 3b916974-8cd3-4df5-b12e-97b66a7be1dd
+            X-Content-Type-Options: nosniff
+            Etag: W/"512038da6ae292d2ce3711bde1ecf3c8"
+            Vary: Origin
+            X-Frame-Options: SAMEORIGIN
+
+    + Body
+
+            {
+              "status": 200,
+              "errors": [
+
+              ],
+              "patient": {
+                "identifier": "1",
+                "mobile_setup": false,
+                "activation_date": "12-01-2017",
+                "removal_requested": true,
+                "password_reset_requested": true
+              },
+              base_data: {
+                "nadir_cd4": "1",
+                "diagnosis_date": "13/12/2016",
+                "resistance_result": "1"
+              },
+              "medications":
+                {
+                  "name": "Atripla",
+                  "dose": "One tablet daily",
+                  "description": "Each tablet contains 600mg efavirenz + 300mg tenofovir disoproxil fumarate + 200mg emtricitabine.",
+                  "treatment_end": "",
+                  "treatment_start": "12-07-2016"
+                }
+              ],
+              "results": [
+                {
+                  "date": "12-07-2016",
+                  "results": {
+                    "HIV": {
+                      "Viral Load": 0,
+                      "CD4 Count": 1267
+                    },
+                    "Safety Labs": {
+                      "ALT (ukat/L)": 12,
+                      "Fasting Glucose (mmol/L)": 4.95,
+                      "Haemoglobin (g/dl)": 14.16,
+                      "Total Cholesterol (mmol/L)": 3.8,
+                      "Leukocytes (x10^9/L)": 5.08,
+                      "Sodium (mmol/L)": 141,
+                      "Potassium (mmol/L)": 5,
+                      "Creatinine (μmol/L)": 70,
+                      "Triglycerides (mmol/L)": 0.98
+                    }
+                  }
+                },
+                {
+                  "date": "12-01-2016",
+                  "results": {
+                    "HIV": {
+                      "Viral Load": 0,
+                      "CD4 Count": 1414
+                    },
+                    "Safety Labs": {
+                      "ALT (ukat/L)": 23,
+                      "Fasting Glucose (mmol/L)": 4.81,
+                      "Haemoglobin (g/dl)": 17.45,
+                      "Total Cholesterol (mmol/L)": 3.59,
+                      "Leukocytes (x10^9/L)": 9.2,
+                      "Sodium (mmol/L)": 142,
+                      "Potassium (mmol/L)": 4.23,
+                      "Creatinine (μmol/L)": 99,
+                      "Triglycerides (mmol/L)": 0.63
+                    }
+                  }
+                }
+              ],
+              "appointments": [
+                {
+                  "date": "12-07-2017",
+                  "time": "17:00",
+                  "description": "Doctors Appointment"
+                },
+                {
+                  "date": "12-01-2018",
+                  "time": "17:45",
+                  "description": "Doctors Appointment"
+                },
+                {
+                  "date": "12-07-2018",
+                  "time": "15:15",
+                  "description": "Doctors Appointment"
+                },
+                {
+                  "date": "12-01-2019",
+                  "time": "13:15",
+                  "description": "Nurse Appointment"
+                },
+                {
+                  "date": "12-07-2019",
+                  "time": "16:00",
+                  "description": "Doctors Appointment"
+                }
+              ],
+              "messages": [
+                {
+                  "text": "This is a message"
+                },
+                {
+                  "text": "This is a message"
+                },
+                {
+                  "text": "This is a message"
+                }
+              ]
+            }
+
+
+# DELETE /api/v1/clinical/hospitals/1/patients/1
+
+Completely deletes a patient and all related data from the messaging service. They will no longer be able to log into the mobile app and data will no longer be accepted.
+To start accepting data again they must be reregistered.
+
++ Request (application/json; charset=utf-8)
+
+        {
+            "api_key": "2h2EPLVNjKjpqTxRugdTvH45"
+        }
+
++ Response 200 (application/json; charset=utf-8)
+
+    + Headers
+
+            X-Runtime: 0.023891
+            X-Xss-Protection: 1; mode=block
+            Cache-Control: max-age=0, private, must-revalidate
+            X-Request-Id: c8bb5dd9-d652-4058-9da5-632362040b40
+            X-Content-Type-Options: nosniff
+            Etag: W/"c5e0d0cd96e40463fde98f3d68ef818c"
+            Vary: Origin
+            X-Frame-Options: SAMEORIGIN
+
+    + Body
+
+            {
+              "status": 200,
+              "errors": [
+
+              ]
+            }
+
+
+# GET /api/v1/clinical/hospitals/1/info
+
+Request data on patients that have requested removal from the study or to have their password reset.
+
++ Request (application/json; charset=utf-8)
+
+        {
+            "api_key": "2h2EPLVNjKjpqTxRugdTvH45"
+        }
+
++ Response 200 (application/json; charset=utf-8)
+
+    + Headers
+
+            X-Runtime: 0.015040
+            X-Xss-Protection: 1; mode=block
+            Cache-Control: max-age=0, private, must-revalidate
+            X-Request-Id: d39efa7d-2392-4033-a22b-61a170c922f0
+            X-Content-Type-Options: nosniff
+            Etag: W/"aa1dfd09a42db5eda5160d2cc050453b"
+            Vary: Origin
+            X-Frame-Options: SAMEORIGIN
+
+    + Body
+
+            {
+              "status": 200,
+              "errors": [
+
+              ],
+              "removal_requested": [
+                {
+                  "identifier": "1"
+                }
+              ],
+              "password_reset_requested": [
+                {
+                  "identifier": "1"
+                }
+              ]
+            }
+
+
+# PUT /api/v1/clinical/hospitals/1/faq
+
+Set the FAQ data that will appear on the mobile app for patients.
+
+The data set will appear like this on the mobile:
+
+![FAQ sections screenshot](http://i.imgur.com/iqc90Wu.png)
+![FAQ section screenshot](http://i.imgur.com/TPEBAuz.png)
+
+You can send as many sections or questions as required.
+
+FAQs will appear to all patients under the Help & Information section of the app.
+
+As this is a PUT endpoint any data sent will completely replace old data.
+
++ Request (application/json; charset=utf-8)
+
+        {
+            "api_key": "2h2EPLVNjKjpqTxRugdTvH45",
+            "faq": [
+                {
+                    "title": "Section 1",
+                    "questions": [
+                        {
+                            "question": "Section 1 Question 1?",
+                            "answer": "Section 1 Answer 1"
+                        },
+                        {
+                            "question": "Section 1 Question 2",
+                            "answer": "Section 1 Answer 2"
+                        }
+                    ]
+                },
+                {
+                    "title": "Section 2",
+                    "questions": [
+                        {
+                            "question": "Section 2 Question 1?",
+                            "answer": "Section 2 Answer 1"
+                        },
+                        {
+                            "question": "Section 2 Question 2",
+                            "answer": "Section 2 Answer 2"
+                        }
+                    ]
+                }
+            ]
+        }
+
++ Response 200 (application/json; charset=utf-8)
+
+    + Headers
+
+            X-Runtime: 0.035519
+            X-Xss-Protection: 1; mode=block
+            Cache-Control: max-age=0, private, must-revalidate
+            X-Request-Id: 2d771625-32ab-43b9-aeea-f5d8cdf8ca5f
+            X-Content-Type-Options: nosniff
+            Etag: W/"94010e2f6f01262c910e9469f959cfa3"
+            Vary: Origin
+            X-Frame-Options: SAMEORIGIN
+
+    + Body
+
+            {
+              "status": 200,
+              "errors": [
+
+              ],
+              "faq": [
+                {
+                  "title": "Section 1",
+                  "questions": [
+                    {
+                      "question": "Section 1 Question 1?",
+                      "answer": "Section 1 Answer 1"
+                    },
+                    {
+                      "question": "Section 1 Question 2",
+                      "answer": "Section 1 Answer 2"
+                    }
+                  ]
+                },
+                {
+                  "title": "Section 2",
+                  "questions": [
+                    {
+                      "question": "Section 2 Question 1?",
+                      "answer": "Section 2 Answer 1"
+                    },
+                    {
+                      "question": "Section 2 Question 2",
+                      "answer": "Section 2 Answer 2"
+                    }
+                  ]
+                }
+              ]
+            }
+
+
+# GET /api/v1/clinical/hospitals/1/faq
+
++ Request (application/json; charset=utf-8)
+
+        {
+            "api_key": "2h2EPLVNjKjpqTxRugdTvH45"
+        }
+
++ Response 200 (application/json; charset=utf-8)
+
+    + Headers
+
+            X-Runtime: 0.016719
+            X-Xss-Protection: 1; mode=block
+            Cache-Control: max-age=0, private, must-revalidate
+            X-Request-Id: 3700553e-7962-451f-9a13-8378201b4eec
+            X-Content-Type-Options: nosniff
+            Etag: W/"94010e2f6f01262c910e9469f959cfa3"
+            Vary: Origin
+            X-Frame-Options: SAMEORIGIN
+
+    + Body
+
+            {
+              "status": 200,
+              "errors": [
+
+              ],
+              "faq": [
+                {
+                  "title": "Section 1",
+                  "questions": [
+                    {
+                      "question": "Section 1 Question 1?",
+                      "answer": "Section 1 Answer 1"
+                    },
+                    {
+                      "question": "Section 1 Question 2",
+                      "answer": "Section 1 Answer 2"
+                    }
+                  ]
+                },
+                {
+                  "title": "Section 2",
+                  "questions": [
+                    {
+                      "question": "Section 2 Question 1?",
+                      "answer": "Section 2 Answer 1"
+                    },
+                    {
+                      "question": "Section 2 Question 2",
+                      "answer": "Section 2 Answer 2"
+                    }
+                  ]
+                }
+              ]
+            }
+
+# POST /api/v1/mobile/hospitals/1/patients/1/session_tokens
+
+Endpoint for creating session tokens for the given patient. Takes in password and api_key as parameters and returns a session_token.
+Session token provided must be used for all API requests that are specified as requiring a session token.
+
+Session tokens only work for the patient logged in as.
+
++ Request (application/json; charset=utf-8)
+
+        {
+            "api_key": "2871608e488c87df2d446b5fabb6d7db1e5263b94d6fc32d2bb772992d6b0a60411d1724bf6c9ee8887082df0317db59c5d6a2ae4748715e4b96a8390e2f9da8",
+            "password": "password"
+        }
+
++ Response 200 (application/json; charset=utf-8)
+
+    + Headers
+
+            X-Runtime: 0.083180
+            X-Xss-Protection: 1; mode=block
+            Cache-Control: max-age=0, private, must-revalidate
+            X-Request-Id: 88471ccc-94e6-4863-b081-4f82c28d6526
+            X-Content-Type-Options: nosniff
+            Etag: W/"f88ce03bab37697688f14087c1055fff"
+            Vary: Origin
+            X-Frame-Options: SAMEORIGIN
+
+    + Body
+
+            {
+              "status": 200,
+              "errors": [
+
+              ],
+              "session_token": "Lb6jRRpYng61eBDTKJWEYruY"
+            }
+
+
+# DELETE /api/v1/mobile/hospitals/1/patients/1/session_tokens
+
+Deletes the given session_token preventing further authentication with it.
+
++ Request (application/json; charset=utf-8)
+
+        {
+            "api_key": "2871608e488c87df2d446b5fabb6d7db1e5263b94d6fc32d2bb772992d6b0a60411d1724bf6c9ee8887082df0317db59c5d6a2ae4748715e4b96a8390e2f9da8",
+            "session_token": "Lb6jRRpYng61eBDTKJWEYruY"
+        }
+
++ Response 200 (application/json; charset=utf-8)
+
+    + Headers
+
+            X-Runtime: 0.026693
+            X-Xss-Protection: 1; mode=block
+            Cache-Control: max-age=0, private, must-revalidate
+            X-Request-Id: 2210a96d-e078-4432-a7d1-5e7f897aab8d
+            X-Content-Type-Options: nosniff
+            Etag: W/"c5e0d0cd96e40463fde98f3d68ef818c"
+            Vary: Origin
+            X-Frame-Options: SAMEORIGIN
+
+    + Body
+
+            {
+              "status": 200,
+              "errors": [
+
+              ]
+            }
+
+
+# POST /api/v1/mobile/hospitals/1/patients/1/password_reset
+
+Sets the given patient as having requested a password reset. Does not require a session token as this exists outside the logged in area.
+
++ Request (application/json; charset=utf-8)
+
+        {
+            "api_key": "2871608e488c87df2d446b5fabb6d7db1e5263b94d6fc32d2bb772992d6b0a60411d1724bf6c9ee8887082df0317db59c5d6a2ae4748715e4b96a8390e2f9da8"
+        }
+
++ Response 200 (application/json; charset=utf-8)
+
+    + Headers
+
+            X-Runtime: 1.547661
+            X-Xss-Protection: 1; mode=block
+            Cache-Control: max-age=0, private, must-revalidate
+            X-Request-Id: 74b7aea9-3643-4bfc-8309-c89466934db7
+            X-Content-Type-Options: nosniff
+            Etag: W/"c5e0d0cd96e40463fde98f3d68ef818c"
+            Vary: Origin
+            X-Frame-Options: SAMEORIGIN
+
+    + Body
+
+            {
+              "status": 200,
+              "errors": [
+
+              ]
+            }
+
+
+# GET /api/v1/mobile/hospitals/
+
+Returns list of all hospitals. Used in app for displaying dropdown of hospitals to log in for.
+
+Id provided for each hospital is used in urls.
+
+api_key must be passed as a get parameter, like this: ```/api/v1/clinical/hospitals/1/patients/1?api_key=2h2EPLVNjKjpqTxRugdTvH45```
+
++ Response 200 (application/json; charset=utf-8)
+
+    + Headers
+
+            X-Runtime: 0.029326
+            X-Xss-Protection: 1; mode=block
+            Cache-Control: max-age=0, private, must-revalidate
+            X-Request-Id: dd259901-0bef-454f-a38f-e9c10cde6be5
+            X-Content-Type-Options: nosniff
+            Etag: W/"17fea0d9bcb96ace54a873495a2388de"
+            Vary: Origin
+            X-Frame-Options: SAMEORIGIN
+
+    + Body
+
+            {
+              "status": 200,
+              "errors": [
+
+              ],
+              "total": 3,
+              "hospitals": [
+                {
+                  "id": "PJHUJypdBQC4G9NgiKdZB2GC",
+                  "name": "Clinic"
+                },
+                {
+                  "id": "wYvbbPKgvydEmcgFTnFnftdq",
+                  "name": "Hospital 2"
+                },
+                {
+                  "id": "1",
+                  "name": "Hospital Name"
+                }
+              ]
+            }
+
+
+# POST /api/v1/mobile/hospitals/1/patients/1
+
+Updates a given patient. 
+
+Only allows setting requests to the clinical side of the app. Does not accept results, medications, appointments, messages etc.
+
+Requires session token.
+
+### Optional parameters:
+- removal_requested: Sets a patient as having requested their removal from the study.
+- password_reset_requested: Sets a patient as having requested their password be reset for them.
+
++ Request (application/json; charset=utf-8)
+
+        {
+            "api_key": "2871608e488c87df2d446b5fabb6d7db1e5263b94d6fc32d2bb772992d6b0a60411d1724bf6c9ee8887082df0317db59c5d6a2ae4748715e4b96a8390e2f9da8",
+            "removal_requested": true,
+            "password_reset_requested": true,
+            "session_token": "Lb6jRRpYng61eBDTKJWEYruY"
+        }
+
++ Response 200 (application/json; charset=utf-8)
+
+    + Headers
+
+            X-Runtime: 0.051840
+            X-Xss-Protection: 1; mode=block
+            Cache-Control: max-age=0, private, must-revalidate
+            X-Request-Id: 57b344a7-ea12-4c04-a3d5-4f5dee2f1b80
+            X-Content-Type-Options: nosniff
+            Etag: W/"0f65ff216e32d7dd4979398bb6a9d343"
+            Vary: Origin
+            X-Frame-Options: SAMEORIGIN
+
+    + Body
+
+            {
+              "status": 200,
+              "errors": [
+
+              ],
+              "data_received": true
+            }
+
+
+# GET /api/v1/mobile/hospitals/1/patients/1
+
+Returns patient information for display in app.
+
+Requires session token.
+
+api_key and session_token must be passed as a get parameter, like this: ```/api/v1/clinical/hospitals/1/patients/1?api_key=287...2f9da8&session_token=Lb6jRRpYng61eBDTKJWEYruY```
+
+nadir_cd4, diagnosis_date, and resistance_result in the patient hash is deprecated. New base data will appear in the base_data hash.
++ Request (application/json; charset=utf-8)
+
+        {}
+
++ Response 200 (application/json; charset=utf-8)
+
+    + Headers
+
+            X-Runtime: 0.051263
+            X-Xss-Protection: 1; mode=block
+            Cache-Control: max-age=0, private, must-revalidate
+            X-Request-Id: 256ba83b-d64b-4fb4-92f7-dd9c6d6d49b6
+            X-Content-Type-Options: nosniff
+            Etag: W/"a064ec608e1572c58489af696e1f0b6c"
+            Vary: Origin
+            X-Frame-Options: SAMEORIGIN
+
+    + Body
+
+            {
+              "status": 200,
+              "errors": [
+            
+              ],
+              "patient": {
+                "identifier": "1",
+                "mobile_setup": true,
+                "activation_date": "08-03-2017",
+                "removal_requested": false,
+                "password_reset_requested": false,
+                "nadir_cd4": "1",
+                "diagnosis_date": "13/12/2016",
+                "resistance_result": "1",
+                "first_login": true
+              },
+              base_data: {
+                "nadir_cd4": "1",
+                "diagnosis_date": "13/12/2016",
+                "resistance_result": "1"
+              },
+              "medications": [
+                {
+                  "name": "Atripla",
+                  "dose": "One tablet daily",
+                  "description": "Each tablet contains 600mg efavirenz + 300mg tenofovir disoproxil fumarate + 200mg emtricitabine.",
+                  "treatment_end": "",
+                  "treatment_start": "12-07-2016"
+                }
+              ],
+              "results": [
+                {
+                  "date": "12-07-2016",
+                  "results": {
+                    "HIV": {
+                      "Viral Load": 0,
+                      "CD4 Count": 1267
+                    },
+                    "Safety Labs": {
+                      "ALT (ukat/L)": 12,
+                      "Fasting Glucose (mmol/L)": 4.95,
+                      "Haemoglobin (g/dl)": 14.16,
+                      "Total Cholesterol (mmol/L)": 3.8,
+                      "Leukocytes (x10^9/L)": 5.08,
+                      "Sodium (mmol/L)": 141,
+                      "Potassium (mmol/L)": 5,
+                      "Creatinine (μmol/L)": 70,
+                      "Triglycerides (mmol/L)": 0.98
+                    }
+                  }
+                },
+                {
+                  "date": "12-01-2016",
+                  "results": {
+                    "HIV": {
+                      "Viral Load": 0,
+                      "CD4 Count": 1414
+                    },
+                    "Safety Labs": {
+                      "ALT (ukat/L)": 23,
+                      "Fasting Glucose (mmol/L)": 4.81,
+                      "Haemoglobin (g/dl)": 17.45,
+                      "Total Cholesterol (mmol/L)": 3.59,
+                      "Leukocytes (x10^9/L)": 9.2,
+                      "Sodium (mmol/L)": 142,
+                      "Potassium (mmol/L)": 4.23,
+                      "Creatinine (μmol/L)": 99,
+                      "Triglycerides (mmol/L)": 0.63
+                    }
+                  }
+                }
+              ],
+              "appointments": [
+                {
+                  "date": "12-07-2017",
+                  "time": "17:00",
+                  "description": "Doctors Appointment"
+                },
+                {
+                  "date": "12-01-2018",
+                  "time": "17:45",
+                  "description": "Doctors Appointment"
+                },
+                {
+                  "date": "12-07-2018",
+                  "time": "15:15",
+                  "description": "Doctors Appointment"
+                },
+                {
+                  "date": "12-01-2019",
+                  "time": "13:15",
+                  "description": "Nurse Appointment"
+                },
+                {
+                  "date": "12-07-2019",
+                  "time": "16:00",
+                  "description": "Doctors Appointment"
+                }
+              ],
+              "messages": [
+                {
+                  "text": "This is a message"
+                }
+              ],
+              "counts": {
+                "appointments": 5,
+                "medications": 1,
+                "results": 2,
+                "messages": 1
+              }
+            }
+
+
+# GET /api/v1/mobile/hospitals/1/faq
+
+Returns FAQ data for the given hospital.
+
+Requires session token for a patient from the specified hospital.
+
++ Request (application/json; charset=utf-8)
+
+        {}
+
++ Response 200 (application/json; charset=utf-8)
+
+    + Headers
+
+            X-Runtime: 0.015689
+            X-Xss-Protection: 1; mode=block
+            Cache-Control: max-age=0, private, must-revalidate
+            X-Request-Id: 4a14b277-3b86-4ca4-9dd6-801ad321a03b
+            X-Content-Type-Options: nosniff
+            Etag: W/"94010e2f6f01262c910e9469f959cfa3"
+            Vary: Origin
+            X-Frame-Options: SAMEORIGIN
+
+    + Body
+
+            {
+              "status": 200,
+              "errors": [
+
+              ],
+              "faq": [
+                {
+                  "title": "Section 1",
+                  "questions": [
+                    {
+                      "question": "Section 1 Question 1?",
+                      "answer": "Section 1 Answer 1"
+                    },
+                    {
+                      "question": "Section 1 Question 2",
+                      "answer": "Section 1 Answer 2"
+                    }
+                  ]
+                },
+                {
+                  "title": "Section 2",
+                  "questions": [
+                    {
+                      "question": "Section 2 Question 1?",
+                      "answer": "Section 2 Answer 1"
+                    },
+                    {
+                      "question": "Section 2 Question 2",
+                      "answer": "Section 2 Answer 2"
+                    }
+                  ]
+                }
+              ]
+            }
